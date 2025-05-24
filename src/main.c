@@ -89,3 +89,68 @@ char *lsh_read_line(void){
 
   return line;
 }
+
+//use whitespace to separate arguments from each other
+#define LSH_TOK_BUFSIZE 64
+#define LSH_TOK_DELIM " \t\r\n\a"
+char **lsh_split_line(char *line)
+{
+  int bufsize = LSH_TOK_BUFSIZE, position = 0;
+  char **tokens = malloc(bufsize * sizeof(char*));
+  char *token;
+
+  if (!tokens) {
+    fprintf(stderr, "lsh: allocation error\n");
+    exit(EXIT_FAILURE);
+  }
+
+  //strtok() return pointers to within the string you give it, and place \0 bytes at the end of each token.
+  token = strtok(line, LSH_TOK_DELIM);
+  while (token != NULL) {
+    tokens[position] = token;
+    position++;
+
+    if (position >= bufsize) {
+      bufsize += LSH_TOK_BUFSIZE;
+      tokens = realloc(tokens, bufsize * sizeof(char*));
+      if (!tokens) {
+        fprintf(stderr, "lsh: allocation error\n");
+        exit(EXIT_FAILURE);
+      }
+    }
+
+    token = strtok(NULL, LSH_TOK_DELIM);
+  }
+  tokens[position] = NULL;
+  return tokens;
+}
+
+//
+int lsh_launch(char **args)
+{
+  pid_t pid, wpid;
+  int status;
+
+  //fork() returns 0 to the child process, and it returns to the parent the process ID number (PID) of its child.
+  pid = fork();
+  if (pid == 0) {
+    // Child process
+    if (execvp(args[0], args) == -1) {
+      perror("lsh");
+      //'v' expects a program name and an array  of string arguments (the first one has to be the program name).
+      // The ‘p’ means that instead of providing the full file path of the program to run, we’re going to give its name, and let the operating system search for the program in the path.
+    }
+    exit(EXIT_FAILURE);
+  } else if (pid < 0) {
+    // Error forking
+    perror("lsh");
+  } else {
+    // Parent process
+    do {
+      wpid = waitpid(pid, &status, WUNTRACED);
+      //We use waitpid() to wait for the process’s state to change.
+    } while (!WIFEXITED(status) && !WIFSIGNALED(status));
+  }
+
+  return 1;
+}
